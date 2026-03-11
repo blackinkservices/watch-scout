@@ -1,15 +1,23 @@
 import { useState, useCallback } from "react";
 
 // ── API call — goes to our Netlify function, never exposes the key ────────────
-async function callClaude(payload) {
-  const res = await fetch("/api/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || data.error || `API error ${res.status}`);
-  return data;
+async function callClaude(payload, retries = 3) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    // Retry on rate limit (429) with exponential backoff
+    if (res.status === 429 && attempt < retries) {
+      const wait = (attempt + 1) * 15000; // 15s, 30s, 45s
+      await new Promise(r => setTimeout(r, wait));
+      continue;
+    }
+    if (!res.ok) throw new Error(data.error?.message || data.error || `API error ${res.status}`);
+    return data;
+  }
 }
 
 // ── Single web search ─────────────────────────────────────────────────────────
@@ -55,7 +63,7 @@ async function runAgent(onStep) {
 
   const results = [];
   for (let i = 0; i < steps.length; i++) {
-    if (i > 0) await delay(4000); // throttle to stay under 30k tokens/min rate limit
+    if (i > 0) await delay(10000); // 10s gap to stay under 30k tokens/min rate limit
     onStep(steps[i].label);
     const result = await webSearch(steps[i].query);
     results.push({ label: steps[i].label, result });
