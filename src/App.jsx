@@ -26,6 +26,8 @@ async function webSearch(query) {
   return data.content?.filter(b => b.type === "text").map(b => b.text).join("\n") || "no results";
 }
 
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
 // ── Agent: run all searches then synthesise ───────────────────────────────────
 async function runAgent(onStep) {
   const steps = [
@@ -52,10 +54,11 @@ async function runAgent(onStep) {
   ];
 
   const results = [];
-  for (const step of steps) {
-    onStep(step.label);
-    const result = await webSearch(step.query);
-    results.push({ label: step.label, result });
+  for (let i = 0; i < steps.length; i++) {
+    if (i > 0) await delay(4000); // throttle to stay under 30k tokens/min rate limit
+    onStep(steps[i].label);
+    const result = await webSearch(steps[i].query);
+    results.push({ label: steps[i].label, result });
   }
 
   onStep("Building your report…");
