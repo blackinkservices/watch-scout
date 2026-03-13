@@ -78,7 +78,8 @@ async function callClaude(payload, retries = 3) {
       }
       throw new Error(`API returned non-JSON (HTTP ${res.status}). Try again in 30 seconds.`);
     }
-    if (res.status === 429 && attempt < retries) {
+    // Retry on rate limit (429) or overloaded (529)
+    if ((res.status === 429 || res.status === 529) && attempt < retries) {
       const wait = (attempt + 1) * 15000;
       await new Promise(r => setTimeout(r, wait));
       continue;
