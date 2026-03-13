@@ -1,11 +1,9 @@
 // netlify/functions/search.js
 // This runs on Netlify's servers — the API key never touches the browser.
 
-export const config = { type: "commonjs" };
-
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
-export async function handler(event) {
+exports.handler = async function (event) {
   // Only allow POST
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
@@ -37,7 +35,19 @@ export async function handler(event) {
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+
+    // If the response isn't JSON (e.g. Cloudflare HTML error), wrap it
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return {
+        statusCode: response.status || 502,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: `Anthropic API returned non-JSON (HTTP ${response.status}). This is usually a temporary rate limit or outage — try again in 30 seconds.` }),
+      };
+    }
 
     return {
       statusCode: response.status,
@@ -47,7 +57,8 @@ export async function handler(event) {
   } catch (err) {
     return {
       statusCode: 502,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ error: "Failed to reach Anthropic API", detail: err.message }),
     };
   }
-}
+};

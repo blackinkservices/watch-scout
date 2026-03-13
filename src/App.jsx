@@ -66,7 +66,18 @@ async function callClaude(payload, retries = 3) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Non-JSON response (HTML error page, Cloudflare block, etc.)
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, (attempt + 1) * 15000));
+        continue;
+      }
+      throw new Error(`API returned non-JSON (HTTP ${res.status}). Try again in 30 seconds.`);
+    }
     if (res.status === 429 && attempt < retries) {
       const wait = (attempt + 1) * 15000;
       await new Promise(r => setTimeout(r, wait));
