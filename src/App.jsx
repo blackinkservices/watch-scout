@@ -1,5 +1,63 @@
 import { useState, useCallback } from "react";
 
+// ── Watch & site configuration ───────────────────────────────────────────────
+const WATCH_CONFIG = [
+  {
+    id: "tudor-bb58",
+    brand: "tudor",
+    displayName: "Tudor Black Bay 58",
+    shortName: "BB58",
+    refs: ["M79030"],
+    searchTerms: "Tudor Black Bay 58 ref 79030",
+    searchTermsJP: '"ブラックベイ58" 中古',
+    subtitle: "ref. M79030",
+  },
+  {
+    id: "tudor-bb54",
+    brand: "tudor",
+    displayName: "Tudor Black Bay 54",
+    shortName: "BB54",
+    refs: ["M79000"],
+    searchTerms: "Tudor Black Bay 54 ref 79000",
+    searchTermsJP: '"ブラックベイ54" 中古',
+    subtitle: "ref. M79000",
+  },
+  {
+    id: "rolex-op",
+    brand: "rolex",
+    displayName: "Rolex Oyster Perpetual",
+    shortName: "Oyster Perpetual",
+    refs: ["124300", "126000"],
+    searchTerms: "Rolex Oyster Perpetual 124300 126000",
+    searchTermsJP: '"オイスターパーペチュアル" 中古',
+    subtitle: "ref. 124300 / 126000",
+  },
+  {
+    id: "rolex-explorer",
+    brand: "rolex",
+    displayName: "Rolex Explorer",
+    shortName: "Explorer",
+    refs: ["124270"],
+    searchTerms: "Rolex Explorer 124270",
+    searchTermsJP: '"エクスプローラー" 中古',
+    subtitle: "ref. 124270",
+  },
+];
+
+const US_SITES = [
+  { name: "Chrono24", domain: "chrono24.com" },
+  { name: "Bob's Watches", domain: "bobswatches.com" },
+  { name: "WatchBox", domain: "watchbox.com" },
+  { name: "SwissWatchExpo", domain: "swisswatchexpo.com" },
+];
+
+const TOKYO_STORES = "Komehyo Jackroad Ginza Rasin Daikokuya";
+
+const DROPDOWN_OPTIONS = [
+  { value: "all", label: "All Watches" },
+  ...WATCH_CONFIG.map(w => ({ value: w.id, label: w.displayName })),
+];
+
 // ── API call — goes to our Netlify function, never exposes the key ────────────
 async function callClaude(payload, retries = 3) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -9,9 +67,8 @@ async function callClaude(payload, retries = 3) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    // Retry on rate limit (429) with exponential backoff
     if (res.status === 429 && attempt < retries) {
-      const wait = (attempt + 1) * 15000; // 15s, 30s, 45s
+      const wait = (attempt + 1) * 15000;
       await new Promise(r => setTimeout(r, wait));
       continue;
     }
@@ -36,34 +93,76 @@ async function webSearch(query) {
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-// ── Agent: run all searches then synthesise ───────────────────────────────────
-async function runAgent(onStep) {
-  const steps = [
-    // Tokyo
-    { label: "Tudor BB58 in Tokyo",       query: "Tudor Black Bay 58 ref 79030 used price yen Tokyo Komehyo Jackroad Ginza Rasin 2025" },
-    { label: "Tudor BB54 in Tokyo",       query: "Tudor Black Bay 54 ref 79000 used price yen Tokyo Komehyo Jackroad 2025" },
-    { label: "Tudor on Japanese sites",   query: 'Tudor "ブラックベイ" 中古 価格 東京 コメ兵 ジャックロード 2025' },
-    { label: "Rolex Oyster in Tokyo",     query: "Rolex Oyster Perpetual 124300 126000 used price yen Tokyo Komehyo Jackroad Ginza Rasin 2025" },
-    { label: "Rolex Explorer in Tokyo",   query: "Rolex Explorer 124270 used price yen Tokyo Komehyo Jackroad Ginza Rasin 2025" },
-    // US — each site gets its own targeted query
-    { label: "Tudor BB58 — Chrono24",     query: 'Tudor "Black Bay 58" used for sale price USD site:chrono24.com' },
-    { label: "Tudor BB54 — Chrono24",     query: 'Tudor "Black Bay 54" used for sale price USD site:chrono24.com' },
-    { label: "Rolex Oyster — Chrono24",   query: 'Rolex "Oyster Perpetual" 124300 used for sale price USD site:chrono24.com' },
-    { label: "Rolex Explorer — Chrono24", query: 'Rolex Explorer 124270 used for sale price USD site:chrono24.com' },
-    { label: "Tudor BB58 — Bob's Watches",   query: 'Tudor "Black Bay 58" used preowned price site:bobswatches.com' },
-    { label: "Rolex Oyster — Bob's Watches", query: 'Rolex "Oyster Perpetual" used preowned price site:bobswatches.com' },
-    { label: "Tudor BB58 — WatchBox",     query: 'Tudor "Black Bay 58" certified preowned price site:watchbox.com' },
-    { label: "Rolex Explorer — WatchBox", query: 'Rolex Explorer 124270 certified preowned price site:watchbox.com' },
-    { label: "Tudor — SwissWatchExpo",    query: 'Tudor "Black Bay" used preowned price site:swisswatchexpo.com' },
-    { label: "Rolex — SwissWatchExpo",    query: 'Rolex "Oyster Perpetual" OR "Explorer" used price site:swisswatchexpo.com' },
-    // Supporting
-    { label: "Tokyo store details",       query: "Komehyo Jackroad Ginza Rasin Tokyo watch store address hours tax free English 2025" },
-    { label: "Live exchange rate",        query: "USD JPY exchange rate today" },
-  ];
+// ── Build search steps from config ───────────────────────────────────────────
+function getActiveWatches(selectedId) {
+  return selectedId === "all" ? WATCH_CONFIG : WATCH_CONFIG.filter(w => w.id === selectedId);
+}
+
+function buildSteps(selectedId) {
+  const watches = getActiveWatches(selectedId);
+  const steps = [];
+
+  // Tokyo search — combine all selected models into one query
+  const tokyoEN = watches.map(w => w.searchTerms).join(" OR ");
+  const tokyoJP = watches.map(w => w.searchTermsJP).join(" ");
+  steps.push({
+    label: "Searching Tokyo stores",
+    query: `(${tokyoEN}) used price yen Tokyo ${TOKYO_STORES} 2025 ${tokyoJP}`,
+  });
+
+  // US — Chrono24 (largest site, gets its own call)
+  const modelNames = watches.map(w => `"${w.displayName}"`).join(" OR ");
+  steps.push({
+    label: "Searching Chrono24",
+    query: `(${modelNames}) used for sale price USD site:chrono24.com`,
+  });
+
+  // US — other dealers combined
+  const otherDomains = US_SITES.filter(s => s.domain !== "chrono24.com").map(s => `site:${s.domain}`).join(" OR ");
+  steps.push({
+    label: "Searching US dealers",
+    query: `(${modelNames}) used preowned price USD (${otherDomains})`,
+  });
+
+  // Supporting — store details + exchange rate combined
+  steps.push({
+    label: "Store details & exchange rate",
+    query: `${TOKYO_STORES} Tokyo watch store address hours tax free English 2025 current USD JPY exchange rate today`,
+  });
+
+  return steps;
+}
+
+function getStepLabels(selectedId) {
+  return [...buildSteps(selectedId).map(s => s.label), "Building your report…"];
+}
+
+// ── Build synthesis schema dynamically ───────────────────────────────────────
+function buildSynthesisSchema(watches) {
+  const brands = [...new Set(watches.map(w => w.brand))];
+  const brandBlocks = brands.map(brand => {
+    const bWatches = watches.filter(w => w.brand === brand);
+    const modelDesc = bWatches.map(w => `${w.displayName} (${w.refs.join("/")})`).join(", ");
+    return `  "${brand}": {
+    "tokyo": [
+      { "store": "Store Name", "area": "Area", "model": "Model Name", "ref": "Ref#", "condition": "Condition", "price_jpy": 480000, "notes": "Box & papers", "url": "https://...", "store_url": "https://..." }
+    ],
+    "us": [
+      { "site": "Site Name", "model": "Model Name", "ref": "Ref#", "condition": "Condition", "price_usd": 3295, "notes": "CPO", "url": "https://..." }
+    ]
+  }  // Models to include: ${modelDesc}`;
+  });
+  return brandBlocks.join(",\n");
+}
+
+// ── Agent: run searches then synthesise ──────────────────────────────────────
+async function runAgent(onStep, selectedId) {
+  const watches = getActiveWatches(selectedId);
+  const steps = buildSteps(selectedId);
 
   const results = [];
   for (let i = 0; i < steps.length; i++) {
-    if (i > 0) await delay(10000); // 10s gap to stay under 30k tokens/min rate limit
+    if (i > 0) await delay(10000);
     onStep(steps[i].label);
     const result = await webSearch(steps[i].query);
     results.push({ label: steps[i].label, result });
@@ -86,29 +185,14 @@ Rules for compiling the JSON:
 - If a search found "typically sells for $X" treat that as a valid market price listing
 - Include the best/most representative listing per site
 - For URLs: use the real URL found, or the site homepage if no specific listing URL was found
-- Never leave tudor.us or rolex.us empty if ANY price information was found in the US search results
+- Never leave any us[] or tokyo[] array empty if ANY price information was found in the search results for that region
 
 Return ONLY valid JSON, no markdown:
 {
   "rate": 0.0067,
   "rate_source": "xe.com",
   "rate_date": "${new Date().toLocaleDateString()}",
-  "tudor": {
-    "tokyo": [
-      { "store": "Komehyo Shinjuku", "area": "Shinjuku", "model": "Black Bay 58", "ref": "M79030N", "condition": "Excellent", "price_jpy": 480000, "notes": "Box & papers", "url": "https://www.komehyo.co.jp", "store_url": "https://www.komehyo.co.jp" }
-    ],
-    "us": [
-      { "site": "Bob's Watches", "model": "Black Bay 58", "ref": "M79030N", "condition": "Excellent", "price_usd": 3295, "notes": "CPO", "url": "https://bobswatches.com/tudor" }
-    ]
-  },
-  "rolex": {
-    "tokyo": [
-      { "store": "Ginza Rasin", "area": "Ginza", "model": "Oyster Perpetual 41", "ref": "124300", "condition": "Mint", "price_jpy": 820000, "notes": "2023 card", "url": "https://www.ginzarasin.com", "store_url": "https://www.ginzarasin.com" }
-    ],
-    "us": [
-      { "site": "WatchBox", "model": "Oyster Perpetual 41", "ref": "124300", "condition": "Very Good", "price_usd": 5800, "notes": "", "url": "https://watchbox.com/rolex" }
-    ]
-  },
+${buildSynthesisSchema(watches)},
   "stores": [
     { "name": "Komehyo", "areas": "Shinjuku & Ginza", "address": "1-chome, Shinjuku", "hours": "10:30–19:30", "tax_free": true, "english": true, "note": "Japan's largest pre-owned luxury chain.", "url": "https://www.komehyo.co.jp", "map": "https://maps.google.com/?q=Komehyo+Shinjuku+Tokyo" }
   ],
@@ -140,6 +224,15 @@ const TAX  = 0.08875;
 const SHIP = 35;
 const allIn  = usd => usd + usd * TAX + SHIP;
 const toUSD  = (jpy, rate) => rate ? jpy * rate : null;
+
+function groupByBrand(watches) {
+  return watches.reduce((acc, w) => {
+    (acc[w.brand] = acc[w.brand] || []).push(w);
+    return acc;
+  }, {});
+}
+
+const BRAND_DISPLAY = { tudor: "Tudor Black Bay", rolex: "Rolex" };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function ExchangeWidget({ rate, source }) {
@@ -345,6 +438,7 @@ const S = {
   headerSub: { fontSize: 13, color: "#78716c", lineHeight: 1.6, margin: 0 },
   metaStrip: { display: "flex", gap: 28, flexWrap: "wrap", marginTop: 28, paddingTop: 24, borderTop: "1px solid #292524" },
   runBtn: r  => ({ background: r ? "#292524" : "#d4a855", color: r ? "#57534e" : "#1c1917", border: "none", borderRadius: 6, padding: "13px 28px", fontSize: 14, fontWeight: 700, cursor: r ? "not-allowed" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap", transition: "all 0.2s" }),
+  select:    { background: "#292524", color: "#e7e5e4", border: "1px solid #44403c", borderRadius: 6, padding: "12px 16px", fontSize: 14, fontFamily: "inherit", cursor: "pointer", outline: "none", minWidth: 200 },
   // content
   content:   { maxWidth: 960, margin: "0 auto", padding: "0 40px 60px" },
   section:   { paddingTop: 44, paddingBottom: 4 },
@@ -388,16 +482,6 @@ const S = {
   tipCard:   { display: "flex", gap: 14, background: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, padding: "16px 18px" },
 };
 
-const ALL_STEPS = [
-  "Tudor BB58 in Tokyo","Tudor BB54 in Tokyo","Tudor on Japanese sites",
-  "Rolex Oyster in Tokyo","Rolex Explorer in Tokyo",
-  "Tudor BB58 — Chrono24","Tudor BB54 — Chrono24","Rolex Oyster — Chrono24","Rolex Explorer — Chrono24",
-  "Tudor BB58 — Bob's Watches","Rolex Oyster — Bob's Watches",
-  "Tudor BB58 — WatchBox","Rolex Explorer — WatchBox",
-  "Tudor — SwissWatchExpo","Rolex — SwissWatchExpo",
-  "Tokyo store details","Live exchange rate","Building your report…",
-];
-
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [status, setStatus]   = useState("idle");
@@ -408,19 +492,30 @@ export default function App() {
   const [error, setError]     = useState(null);
   const [lastRun, setLastRun] = useState(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [selectedWatch, setSelectedWatch] = useState("all");
+
+  const activeWatches = getActiveWatches(selectedWatch);
+  const stepLabels = getStepLabels(selectedWatch);
+  const searchCount = stepLabels.length - 1; // exclude "Building your report…"
 
   const run = useCallback(async () => {
     setStatus("running"); setStep(""); setDone([]); setData(null); setError(null); setRaw([]);
     try {
-      const { data: d, rawResults: rr } = await runAgent(s => { setStep(s); setDone(p => [...p, s]); });
+      const { data: d, rawResults: rr } = await runAgent(s => { setStep(s); setDone(p => [...p, s]); }, selectedWatch);
       setData(d); setRaw(rr); setLastRun(new Date()); setStatus("done");
     } catch (e) {
       setError(e.message); setStatus("error");
     }
-  }, []);
+  }, [selectedWatch]);
 
   const rate = data?.rate;
   const running = status === "running";
+
+  // Build dynamic subtitle from active watches
+  const watchNames = activeWatches.map(w => `${w.shortName} (${w.subtitle})`).join(" · ");
+
+  // Group active watches by brand for rendering sections
+  const brandGroups = groupByBrand(activeWatches);
 
   return (
     <div style={S.page}>
@@ -431,17 +526,30 @@ export default function App() {
           <div>
             <div style={S.eyebrow}>Pre-Owned Watch Price Tracker</div>
             <h1 style={S.h1}>Tokyo vs. US — <span style={S.h1gold}>Your Watch Buying Guide</span></h1>
-            <p style={S.headerSub}>Tudor Black Bay BB58 & BB54 &nbsp;·&nbsp; Rolex Oyster Perpetual & Explorer<br />Live prices · tax-free Tokyo · NYC all-in cost</p>
+            <p style={S.headerSub}>{watchNames}<br />Live prices · tax-free Tokyo · NYC all-in cost</p>
           </div>
-          <button onClick={run} disabled={running} style={S.runBtn(running)}>
-            {running ? "⟳ Scanning…" : lastRun ? "↻ Refresh" : "▶ Run Scout"}
-          </button>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexShrink: 0 }}>
+            <select
+              value={selectedWatch}
+              onChange={e => setSelectedWatch(e.target.value)}
+              disabled={running}
+              style={{ ...S.select, opacity: running ? 0.5 : 1 }}
+            >
+              {DROPDOWN_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <button onClick={run} disabled={running} style={S.runBtn(running)}>
+              {running ? "⟳ Scanning…" : lastRun ? "↻ Refresh" : "▶ Run Scout"}
+            </button>
+          </div>
         </div>
 
         <div style={{ ...S.headerInner, ...S.metaStrip }}>
           {[
             ["Tokyo",      "Tax-free · 9 stores searched"],
             ["US",         "NYC tax 8.875% + $35 shipping"],
+            ["Searches",   `${searchCount} searches · ~${searchCount * 12}s`],
             ["Rate",       rate ? `¥1 = $${rate.toFixed(4)}` : "Run scout to fetch"],
             ["Updated",    lastRun ? lastRun.toLocaleString() : "Not yet run"],
           ].map(([label, val]) => (
@@ -458,13 +566,13 @@ export default function App() {
         <div style={{ background: "#fff", borderBottom: "1px solid #e7e5e4", padding: "20px 40px" }}>
           <div style={{ maxWidth: 960, margin: "0 auto" }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-              Searching… <span style={{ color: "#a8a29e", fontWeight: 400 }}>~60 seconds</span>
+              Searching… <span style={{ color: "#a8a29e", fontWeight: 400 }}>~{searchCount * 12}s</span>
             </div>
             <div style={{ background: "#f5f5f4", borderRadius: 4, height: 4, marginBottom: 16, overflow: "hidden" }}>
-              <div style={{ background: "#d4a855", height: "100%", width: `${(done.length / ALL_STEPS.length) * 100}%`, transition: "width 0.4s ease", borderRadius: 4 }} />
+              <div style={{ background: "#d4a855", height: "100%", width: `${(done.length / stepLabels.length) * 100}%`, transition: "width 0.4s ease", borderRadius: 4 }} />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px 24px" }}>
-              {ALL_STEPS.map((s, i) => {
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(stepLabels.length, 3)}, 1fr)`, gap: "4px 24px" }}>
+              {stepLabels.map((s, i) => {
                 const isDone   = done.includes(s);
                 const isActive = step === s && !isDone;
                 return (
@@ -493,12 +601,12 @@ export default function App() {
           <div style={{ fontSize: 52, marginBottom: 20 }}>⌚</div>
           <h2 style={{ fontSize: 22, fontWeight: 400, color: "#44403c", margin: "0 0 14px" }}>Ready when you are</h2>
           <p style={{ fontSize: 15, color: "#78716c", maxWidth: 460, margin: "0 auto 36px", lineHeight: 1.8 }}>
-            Click <strong style={{ color: "#1c1917" }}>▶ Run Scout</strong> to search Tokyo stores and US websites for live used watch prices, then compare total costs side by side.
+            Select a watch from the dropdown or search all, then click <strong style={{ color: "#1c1917" }}>▶ Run Scout</strong> to compare Tokyo vs US prices side by side.
           </p>
           <div style={{ display: "inline-flex", gap: 32, background: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, padding: "20px 32px", fontSize: 13, color: "#78716c" }}>
             <div>🗼 <strong>9</strong> Tokyo stores</div>
-            <div>🗽 <strong>6</strong> US sites</div>
-            <div>🔍 <strong>17</strong> searches</div>
+            <div>🗽 <strong>{US_SITES.length}</strong> US sites</div>
+            <div>🔍 <strong>{searchCount}</strong> searches</div>
             <div>💱 Live rate</div>
           </div>
         </div>
@@ -517,10 +625,19 @@ export default function App() {
             </div>
           )}
 
-          <hr style={S.divider} />
-          <WatchSection title="Tudor Black Bay" subtitle="BB58 (ref. M79030) · BB54 (ref. M79000)" tokyoItems={data.tudor?.tokyo || []} usItems={data.tudor?.us || []} rate={rate} />
-          <hr style={S.divider} />
-          <WatchSection title="Rolex Oyster Perpetual & Explorer" subtitle="Oyster Perpetual (ref. 124300) · Explorer (ref. 124270)" tokyoItems={data.rolex?.tokyo || []} usItems={data.rolex?.us || []} rate={rate} />
+          {Object.entries(brandGroups).map(([brand, watches]) => (
+            <div key={brand}>
+              <hr style={S.divider} />
+              <WatchSection
+                title={BRAND_DISPLAY[brand] || brand.charAt(0).toUpperCase() + brand.slice(1)}
+                subtitle={watches.map(w => `${w.shortName} (${w.subtitle})`).join(" · ")}
+                tokyoItems={data[brand]?.tokyo || []}
+                usItems={data[brand]?.us || []}
+                rate={rate}
+              />
+            </div>
+          ))}
+
           <hr style={S.divider} />
           <StoreGuide stores={data.stores} />
           <hr style={S.divider} />
