@@ -114,32 +114,20 @@ function buildSteps(selectedId) {
   const watches = getActiveWatches(selectedId);
   const steps = [];
 
-  // Tokyo search — combine all selected models into one query
+  // Search 1: Tokyo prices — combine all selected models into one query
   const tokyoEN = watches.map(w => w.searchTerms).join(" OR ");
   const tokyoJP = watches.map(w => w.searchTermsJP).join(" ");
   steps.push({
-    label: "Searching Tokyo stores",
+    label: "Searching Tokyo prices",
     query: `(${tokyoEN}) used price yen Tokyo ${TOKYO_STORES} 2025 ${tokyoJP}`,
   });
 
-  // US — Chrono24 (largest site, gets its own call)
+  // Search 2: US prices + exchange rate — all US sites in one query
   const modelNames = watches.map(w => `"${w.displayName}"`).join(" OR ");
+  const allDomains = US_SITES.map(s => `site:${s.domain}`).join(" OR ");
   steps.push({
-    label: "Searching Chrono24",
-    query: `(${modelNames}) used for sale price USD site:chrono24.com`,
-  });
-
-  // US — other dealers combined
-  const otherDomains = US_SITES.filter(s => s.domain !== "chrono24.com").map(s => `site:${s.domain}`).join(" OR ");
-  steps.push({
-    label: "Searching US dealers",
-    query: `(${modelNames}) used preowned price USD (${otherDomains})`,
-  });
-
-  // Supporting — store details + exchange rate combined
-  steps.push({
-    label: "Store details & exchange rate",
-    query: `${TOKYO_STORES} Tokyo watch store address hours tax free English 2025 current USD JPY exchange rate today`,
+    label: "Searching US prices",
+    query: `(${modelNames}) used preowned price USD (${allDomains}) current JPY USD exchange rate`,
   });
 
   return steps;
@@ -174,7 +162,7 @@ async function runAgent(onStep, selectedId) {
 
   const results = [];
   for (let i = 0; i < steps.length; i++) {
-    if (i > 0) await delay(20000); // 20s gap — 30k TPM limit allows ~2-3 web_search calls/min
+    if (i > 0) await delay(25000); // 25s gap — keeps us under 30k input tokens/min
     onStep(steps[i].label);
     const result = await webSearch(steps[i].query);
     results.push({ label: steps[i].label, result });
@@ -187,22 +175,22 @@ async function runAgent(onStep, selectedId) {
     max_tokens: 5000,
     messages: [{
       role: "user",
-      content: `You are compiling a watch shopping guide for a US tourist going to Tokyo. Here are real web search results:
+      content: `You are compiling a watch shopping guide for a US tourist visiting Tokyo. Here are web search results:
 
 ${results.map(r => `=== ${r.label} ===\n${r.result}`).join("\n\n")}
 
-Rules for compiling the JSON:
-- Include any listing where you found a real price OR a price range
-- If a search found a range like "$3,200–$3,800", use the midpoint as price_usd and put the range in notes
-- If a search found "typically sells for $X" treat that as a valid market price listing
-- Include the best/most representative listing per site
-- For URLs: use the real URL found, or the site homepage if no specific listing URL was found
-- Never leave any us[] or tokyo[] array empty if ANY price information was found in the search results for that region
+Rules:
+- Include any listing with a real price or price range
+- For ranges like "$3,200–$3,800", use the midpoint and put range in notes
+- Include the best listing per site/store
+- Use real URLs found, or site homepage if none
+- Never leave tokyo[] or us[] empty if ANY prices were found for that region
+- Extract the JPY/USD exchange rate from the search results. If not found, use 0.0067 as default
 
-Return ONLY valid JSON, no markdown:
+Return ONLY valid JSON (no markdown fences):
 {
   "rate": 0.0067,
-  "rate_source": "xe.com",
+  "rate_source": "xe.com or wherever you found it",
   "rate_date": "${new Date().toLocaleDateString()}",
 ${buildSynthesisSchema(watches)},
   "stores": [
@@ -561,7 +549,7 @@ export default function App() {
           {[
             ["Tokyo",      "Tax-free · 9 stores searched"],
             ["US",         "NYC tax 8.875% + $35 shipping"],
-            ["Searches",   `${searchCount} searches · ~${searchCount * 22}s`],
+            ["Searches",   `${searchCount} searches · ~50s`],
             ["Rate",       rate ? `¥1 = $${rate.toFixed(4)}` : "Run scout to fetch"],
             ["Updated",    lastRun ? lastRun.toLocaleString() : "Not yet run"],
           ].map(([label, val]) => (
@@ -578,7 +566,7 @@ export default function App() {
         <div style={{ background: "#fff", borderBottom: "1px solid #e7e5e4", padding: "20px 40px" }}>
           <div style={{ maxWidth: 960, margin: "0 auto" }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-              Searching… <span style={{ color: "#a8a29e", fontWeight: 400 }}>~{searchCount * 22}s</span>
+              Searching… <span style={{ color: "#a8a29e", fontWeight: 400 }}>~50s</span>
             </div>
             <div style={{ background: "#f5f5f4", borderRadius: 4, height: 4, marginBottom: 16, overflow: "hidden" }}>
               <div style={{ background: "#d4a855", height: "100%", width: `${(done.length / stepLabels.length) * 100}%`, transition: "width 0.4s ease", borderRadius: 4 }} />
