@@ -92,7 +92,7 @@ async function callClaude(payload, retries = 3) {
 async function webSearch(query) {
   const data = await callClaude({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 1500,
+    max_tokens: 1024,
     tools: [{ type: "web_search_20250305", name: "web_search" }],
     messages: [{
       role: "user",
@@ -173,7 +173,7 @@ async function runAgent(onStep, selectedId) {
 
   const results = [];
   for (let i = 0; i < steps.length; i++) {
-    if (i > 0) await delay(10000);
+    if (i > 0) await delay(20000); // 20s gap — 30k TPM limit allows ~2-3 web_search calls/min
     onStep(steps[i].label);
     const result = await webSearch(steps[i].query);
     results.push({ label: steps[i].label, result });
@@ -560,7 +560,7 @@ export default function App() {
           {[
             ["Tokyo",      "Tax-free · 9 stores searched"],
             ["US",         "NYC tax 8.875% + $35 shipping"],
-            ["Searches",   `${searchCount} searches · ~${searchCount * 12}s`],
+            ["Searches",   `${searchCount} searches · ~${searchCount * 22}s`],
             ["Rate",       rate ? `¥1 = $${rate.toFixed(4)}` : "Run scout to fetch"],
             ["Updated",    lastRun ? lastRun.toLocaleString() : "Not yet run"],
           ].map(([label, val]) => (
@@ -577,7 +577,7 @@ export default function App() {
         <div style={{ background: "#fff", borderBottom: "1px solid #e7e5e4", padding: "20px 40px" }}>
           <div style={{ maxWidth: 960, margin: "0 auto" }}>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>
-              Searching… <span style={{ color: "#a8a29e", fontWeight: 400 }}>~{searchCount * 12}s</span>
+              Searching… <span style={{ color: "#a8a29e", fontWeight: 400 }}>~{searchCount * 22}s</span>
             </div>
             <div style={{ background: "#f5f5f4", borderRadius: 4, height: 4, marginBottom: 16, overflow: "hidden" }}>
               <div style={{ background: "#d4a855", height: "100%", width: `${(done.length / stepLabels.length) * 100}%`, transition: "width 0.4s ease", borderRadius: 4 }} />
