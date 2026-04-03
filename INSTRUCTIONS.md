@@ -1,6 +1,7 @@
 # Watch Scout — Setup Instructions
 
-Follow these steps in order. The whole process takes about 15 minutes.
+**Note:** This project is already deployed and working at https://watch-scout.netlify.app.
+These instructions are for setting up a fresh copy on a new machine.
 
 ---
 
@@ -10,130 +11,37 @@ Follow these steps in order. The whole process takes about 15 minutes.
 |------|--------------------|--------------|
 | Node.js v18+ | `node -v` in terminal | https://nodejs.org |
 | Git | `git --version` | https://git-scm.com |
-| Claude Code | `claude --version` | Already installed ✓ |
-| GitHub account | — | https://github.com |
-| Netlify account | — | https://netlify.com (free) |
-| Anthropic API key | — | https://console.anthropic.com |
+| Claude Code | `claude --version` | `npm install -g @anthropic-ai/claude-code` |
+| GitHub CLI | `gh --version` | `winget install GitHub.cli` or https://cli.github.com |
+| Netlify CLI | `netlify --version` | `npm install -g netlify-cli` |
 
 ---
 
-## Step 1 — Unzip the project
-
-Unzip `watch-scout.zip` to wherever you keep projects, e.g.:
-```
-~/Projects/watch-scout/
-```
-
-Open a terminal and navigate there:
-```bash
-cd ~/Projects/watch-scout
-```
-
----
-
-## Step 2 — Run the setup script
-
-This installs everything and initialises git in one shot:
+## Step 1 — Clone the repo
 
 ```bash
-bash setup.sh
+git clone https://github.com/blackinkservices/watch-scout.git
+cd watch-scout
+npm install
 ```
-
-The script will:
-- ✓ Check Node.js and Git are installed
-- ✓ Run `npm install`
-- ✓ Install the Netlify CLI globally
-- ✓ Create your `.env` file from the template
-- ✓ Run `git init` and make the first commit
 
 ---
 
-## Step 3 — Add your Anthropic API key
-
-Open the `.env` file in any text editor:
-
-```
-ANTHROPIC_API_KEY=sk-ant-YOUR-KEY-HERE
-```
-
-Replace `sk-ant-YOUR-KEY-HERE` with your real key from:
-👉 https://console.anthropic.com → API Keys → Create Key
-
-**Never share this file or commit it to GitHub** — it's already in `.gitignore`.
-
----
-
-## Step 4 — Start Claude Code
-
-In the project folder, run:
+## Step 2 — Add your Anthropic API key
 
 ```bash
-claude
+cp .env.example .env
 ```
 
-You're now in a Claude Code session. It automatically reads `CLAUDE.md`
-which has the full context of this project.
+Open `.env` and replace the placeholder with your key from https://console.anthropic.com → API Keys.
+
+The key named "watch-scout" already exists in the Black Ink Business Services org.
+
+**Never commit `.env` to git** — it's in `.gitignore`.
 
 ---
 
-## Step 5 — Push to GitHub
-
-In Claude Code, type:
-
-```
-> Create a GitHub repo called watch-scout and push this project to it
-```
-
-Claude Code will handle the `git remote`, `gh repo create`, and `git push`.
-
-Or do it manually:
-1. Go to https://github.com/new
-2. Create a repo called `watch-scout`
-3. Run in terminal:
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/watch-scout.git
-git push -u origin main
-```
-
----
-
-## Step 6 — Deploy to Netlify
-
-In Claude Code, type:
-
-```
-> Deploy this project to Netlify and set my ANTHROPIC_API_KEY environment variable
-```
-
-Claude Code will:
-- Run `netlify login` (opens browser to authenticate)
-- Run `netlify init` (connects to your Netlify account)
-- Set your API key in Netlify's environment
-- Deploy the site
-- Give you a live URL like `https://watch-scout-abc123.netlify.app`
-
-Or do it manually:
-```bash
-netlify login
-netlify init          # "Create & configure a new site" → follow prompts
-netlify env:set ANTHROPIC_API_KEY sk-ant-YOUR-KEY-HERE
-netlify deploy --prod
-```
-
----
-
-## Step 7 — Connect GitHub → Netlify (auto-deploy)
-
-In the Netlify dashboard:
-1. Go to your site → **Site configuration → Build & deploy → Continuous deployment**
-2. Click **Link to Git provider** → GitHub → select `watch-scout`
-3. Build command: `npm run build`  |  Publish directory: `dist`
-
-Now every `git push` auto-deploys. Done.
-
----
-
-## Running locally
+## Step 3 — Run locally
 
 ```bash
 netlify dev
@@ -143,27 +51,61 @@ Opens at http://localhost:8888 with both the React app and Netlify Functions run
 
 ---
 
-## Iterating with Claude Code
-
-Once set up, open Claude Code in the project folder any time:
+## Step 4 — Link to Netlify (if deploying from this machine)
 
 ```bash
-cd ~/Projects/watch-scout
+netlify login    # Opens browser to authenticate
+netlify link     # Select "watch-scout" from the list
+```
+
+The Netlify site already exists. You just need to link your local copy to it.
+
+---
+
+## Step 5 — Deploy
+
+```bash
+npm run build
+git add . && git commit -m "describe what changed" && git push
+netlify deploy --prod
+```
+
+**Note:** Auto-deploy from GitHub is NOT configured. You must run `netlify deploy --prod` manually after pushing.
+
+---
+
+## Step 6 — Start Claude Code
+
+```bash
 claude
 ```
 
-Example things to ask:
+Claude Code reads `CLAUDE.md` automatically, which has full project context.
+
+---
+
+## Iterating with Claude Code
 
 | What you want | What to type |
 |--------------|--------------|
 | Run it locally | `> Run the app locally` |
-| Fix empty US results | `> The US search results are empty, debug and fix` |
-| Add a new watch | `> Add Rolex Submariner as a third watch category` |
+| Fix errors | `> I'm getting this error: <paste error>` |
+| Add a new watch | `> Add Rolex Submariner as a new watch option` |
 | Change the tax rate | `> Change the NYC tax rate to 8.5%` |
 | Deploy changes | `> Deploy to Netlify` |
-| See what changed | `> What files did we modify today?` |
 
-Claude Code reads `CLAUDE.md` automatically, so it always has full project context.
+---
+
+## Current deployment details
+
+| Item | Value |
+|------|-------|
+| Live URL | https://watch-scout.netlify.app |
+| GitHub repo | https://github.com/blackinkservices/watch-scout |
+| Branch | master |
+| Netlify team | Black Ink Business Services |
+| API key name | "watch-scout" (in Anthropic console) |
+| API tier | 30k input tokens/min |
 
 ---
 
@@ -173,13 +115,13 @@ Claude Code reads `CLAUDE.md` automatically, so it always has full project conte
 watch-scout/
 │
 ├── CLAUDE.md              ← Claude Code reads this automatically
-│                            Contains full project context & architecture
+│                            Full project context & architecture
 │
 ├── INSTRUCTIONS.md        ← This file
 │
-├── setup.sh               ← One-shot setup script (run once)
+├── index.html             ← Vite entry (must be at root, NOT in public/)
 │
-├── src/App.jsx            ← The entire frontend application
+├── src/App.jsx            ← The entire frontend application (~700 lines)
 │                            Edit this to change UI, add watches, etc.
 │
 ├── netlify/functions/
@@ -197,36 +139,32 @@ watch-scout/
 
 ## Troubleshooting
 
+**Rate limit errors (30k tokens/min)**
+The app is designed to stay under the limit with 2 searches + 25s delay. If you add more searches, increase the delay in `buildSteps()` or consolidate queries further.
+
+**`Overloaded` error**
+Anthropic servers are temporarily busy. The app auto-retries up to 3 times with 15/30/45s backoff. Just wait.
+
 **`netlify: command not found`**
 ```bash
 npm install -g netlify-cli
 ```
 
-**`claude: command not found`**
-```bash
-npm install -g @anthropic-ai/claude-code
-```
+**`gh: command not found`**
+On Windows, try the full path: `"/c/Program Files/GitHub CLI/gh.exe"`
+Or reinstall: `winget install GitHub.cli`
 
-**US watch results are empty**
-The search queries use `site:chrono24.com` style targeting. Some sites
-block search indexing. Run again — or ask Claude Code to debug it:
-```
-> The US search results are empty, try different search queries
-```
-
-**`ANTHROPIC_API_KEY is not set` error on Netlify**
-Go to Netlify dashboard → your site → **Site configuration →
-Environment variables** → Add `ANTHROPIC_API_KEY` → Redeploy.
+**Build fails with "Could not resolve entry module index.html"**
+Make sure `index.html` is at the project root, NOT in `public/`.
 
 **API key working locally but not on Netlify**
-Make sure you triggered a redeploy *after* setting the env variable.
-In Netlify dashboard → Deploys → Trigger deploy.
+Check Netlify dashboard → Site configuration → Environment variables → verify `ANTHROPIC_API_KEY` is set. Redeploy after adding it.
 
 ---
 
 ## Costs
 
-Each full scan runs ~17 API calls with web search enabled.
-Approximate cost per scan: **$0.05–0.15** depending on result length.
+Each scan runs 2 web search API calls + 1 synthesis call.
+Approximate cost per scan: **$0.03–0.08** depending on result length.
 
 Monitor usage at: https://console.anthropic.com/usage

@@ -1,9 +1,12 @@
-# ⌚ Watch Scout
+# Watch Scout
 
 Live used watch price comparison — Tokyo (tax-free) vs US (NYC all-in).
 
 Tracks Tudor Black Bay BB58/BB54 and Rolex Oyster Perpetual/Explorer across
-9 Tokyo stores and 6 US websites, with live JPY/USD conversion.
+Tokyo stores and US websites, with live JPY/USD conversion.
+
+**Live site:** https://watch-scout.netlify.app
+**Repo:** https://github.com/blackinkservices/watch-scout
 
 ---
 
@@ -18,12 +21,12 @@ just by describing what you want in plain English.
 npm install -g @anthropic-ai/claude-code
 ```
 
-Requires Node.js 18+. See [docs.claude.com](https://docs.claude.com/en/docs/claude-code/overview).
+Requires Node.js 18+.
 
 ### 2. Clone & enter the project
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/watch-scout.git
+git clone https://github.com/blackinkservices/watch-scout.git
 cd watch-scout
 npm install
 ```
@@ -66,19 +69,12 @@ cp .env.example .env   # add your ANTHROPIC_API_KEY
 netlify dev            # http://localhost:8888
 ```
 
-### First deploy
+### Deploy
 
 ```bash
-netlify init
-netlify env:set ANTHROPIC_API_KEY sk-ant-YOUR-KEY-HERE
-netlify deploy --prod
-```
-
-### Every deploy after that
-
-```bash
+npm run build
 git add . && git commit -m "what changed" && git push
-# Netlify auto-deploys from GitHub main branch
+netlify deploy --prod
 ```
 
 ---
@@ -89,18 +85,25 @@ git add . && git commit -m "what changed" && git push
 |-------|------|
 | Frontend | React 18 + Vite |
 | Backend | Netlify Functions (API key never hits the browser) |
-| AI | Anthropic Claude + web_search tool |
-| Hosting | Netlify (auto-deploys from GitHub) |
+| AI | Anthropic Claude claude-sonnet-4-20250514 + web_search tool |
+| Hosting | Netlify |
+
+## How it works
+
+The app makes 2 web search API calls (Tokyo prices + US prices) with a 25-second gap to stay under Anthropic's 30k tokens/min rate limit, then a synthesis call compiles results into structured JSON. Total run time is ~50 seconds.
+
+A dropdown lets you search one watch at a time or all four at once.
 
 ## Project structure
 
 ```
 watch-scout/
-├── CLAUDE.md                  ← Claude Code project context
+├── CLAUDE.md                  ← Claude Code project context (start here)
+├── index.html                 ← Vite entry point (must be at root)
 ├── netlify/functions/
 │   └── search.js              ← Serverless API proxy (key lives here)
 ├── src/
-│   └── App.jsx                ← Entire frontend
+│   └── App.jsx                ← Entire frontend (~700 lines)
 ├── netlify.toml               ← Build + routing
 └── .env.example               ← Copy → .env, add key
 ```
