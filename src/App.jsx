@@ -42,6 +42,16 @@ const WATCH_CONFIG = [
     searchTermsJP: '"エクスプローラー" 中古',
     subtitle: "ref. 124270",
   },
+  {
+    id: "omega-seamaster-300m",
+    brand: "omega",
+    displayName: "Omega Seamaster Diver 300M",
+    shortName: "Seamaster 300M",
+    refs: ["210.30.42.20.03.001", "210.30.42.20.01.001", "210.32.42.20.03.001"],
+    searchTerms: "Omega Seamaster Diver 300M 210.30.42",
+    searchTermsJP: '"シーマスター" "300M" 中古',
+    subtitle: "ref. 210.30.42.20.xx",
+  },
 ];
 
 const US_SITES = [
@@ -232,7 +242,7 @@ function groupByBrand(watches) {
   }, {});
 }
 
-const BRAND_DISPLAY = { tudor: "Tudor Black Bay", rolex: "Rolex" };
+const BRAND_DISPLAY = { tudor: "Tudor Black Bay", rolex: "Rolex", omega: "Omega" };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function ExchangeWidget({ rate, source }) {
